@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 sys.path.append("../QuadTreeAttention")
-from QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB
+from QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB, QTAttB_Attention
 
 
 class QuadtreeAttention(nn.Module):
@@ -36,16 +36,20 @@ class QuadtreeAttention(nn.Module):
         self.v_proj = nn.Conv2d(dim, dim, kernel_size=1, stride=1, bias=qkv_bias)
         if attn_type == "A":
             self.py_att = QTAttA(num_heads, dim // num_heads, scale=scale, topks=topks)
-        else:
+        elif attn_type == "B":
             self.py_att = QTAttB(num_heads, dim // num_heads, scale=scale, topks=topks)
+        else:
+            self.py_att = QTAttB_Attention(num_heads, dim // num_heads, scale=scale, topks=topks)
 
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
         self.scale = scale
+        self.attn_type = attn_type
 
         self.apply(self._init_weights)
+
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -86,9 +90,25 @@ class QuadtreeAttention(nn.Module):
                 q = F.avg_pool2d(q, kernel_size=2, stride=2)
                 v = F.avg_pool2d(v, kernel_size=2, stride=2)
 
-        msg = self.py_att(queries, keys, values).view(B, -1, C)
+        if self.attn_type == "B_Attation":
+            msg, att = self.py_att(queries, keys, values)
+            msg = msg.view(B, -1, C)
+        else:
+            msg = self.py_att(queries, keys, values).view(B, -1, C)
 
         x = self.proj(msg)
         x = self.proj_drop(x)
 
-        return x
+        return x, att
+
+if __name__ == "__main__":
+    device = torch.device("cuda")
+    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8],scale=3,attn_type="B_Attation")
+    att.to(device)
+    fmap1 = torch.randn(2, 10000, 256).to(device)
+    fmap2 = torch.randn(2, 10000, 256).to(device)
+    out, att= att(fmap1,fmap2, 100, 100)
+
+    print(out.shape)
+    for l in att:
+        print(l.shape)

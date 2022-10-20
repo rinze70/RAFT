@@ -1,0 +1,4 @@
+QuadTreeAttention/build/*
+QuadTreeAttention/quadtree_attention_package.egg-info/*
+QuadTreeAttention/dist/*
+__pycache__

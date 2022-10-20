@@ -401,4 +401,4 @@ class QTAttB_Attention(nn.Module):
                 final_message = rearrange(
                     final_message, "b (H W) (t1 t2) h d -> b (H t1 W t2) h d", t1=2, t2=2, H=queries[-i].shape[2]
                 )
-        return final_message
+        return final_message, attentions
