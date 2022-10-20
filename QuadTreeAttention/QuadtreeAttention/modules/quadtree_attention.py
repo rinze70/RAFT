@@ -273,7 +273,7 @@ class QTAttB(nn.Module):
                 )
         return final_message
 
-class QTAttB_Channel(nn.Module):
+class QTAttB_Attention(nn.Module):
     def __init__(self, nhead, dim, scale, topks=[32, 32, 32, 32], use_dropout=False, attention_dropout=0.1, lepe=False):
         super().__init__()
         self.use_dropout = use_dropout
@@ -358,6 +358,7 @@ class QTAttB_Channel(nn.Module):
         bs = queries[0].shape[0]
 
         messages = []
+        attentions = []
         topk = self.topks[0]
         for i, (query, key, value) in enumerate(zip(reversed(queries), reversed(keys), reversed(values))):
             bs, c, h, w = key.shape
@@ -372,6 +373,7 @@ class QTAttB_Channel(nn.Module):
                 )
 
             messages.append(message)
+            attentions.append(A)
             topk_pos = torch.stack([topk_idx // w, topk_idx % w])  # convert to coordinate
 
         # Merge messages of different layers
