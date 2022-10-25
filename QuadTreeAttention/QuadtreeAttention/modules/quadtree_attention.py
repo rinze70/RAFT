@@ -341,7 +341,7 @@ class QTAttB_Attention(nn.Module):
         L = A.shape[1]
         fsa = A.new_zeros([bs, L, 4, L*4, self.nhead]).contiguous() # [N, L, 4, k*4, H] -> [N, L, 4, 4L, H]
         fsa = fsa.scatter(dim=-2, index=idx, src=A)
-        fsa = fsa.rearrange("b (h w) (t1 t2) l h -> b (h t1) (w t2) l h", h=h//2, w=w//2, t1=2, t2=2) # [N, 4L, 4L, H]
+        fsa = rearrange(fsa,"b (h w) (t1 t2) l nh -> b (h t1 w t2) l nh", h=h//2, t1=2) # [N, 4L, 4L, H]
 
         topk_score, topk_idx = torch.topk(A, dim=-2, k=topk, largest=True)
         message = value_aggregation_op(A, value.contiguous(), idx)
