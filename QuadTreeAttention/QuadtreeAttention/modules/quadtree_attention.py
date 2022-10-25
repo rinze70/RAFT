@@ -328,14 +328,20 @@ class QTAttB_Attention(nn.Module):
 
         # score computation
         # query: [b, N, 4, H, D]
-        # key: [b, 4N, H, D]
+        # key: [b, 4N, H, D] -> [b, 4k, H, D]
         # idx: [b, N, K, 4, H]
         # QK: [b, N, 4, 4K, H]
         QK = score_computation_op(query, key.contiguous(), idx.view(bs, -1, topk_prev * 4, self.nhead))
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
         A = torch.softmax(softmax_temp * QK, dim=-2)  # [N, L//scale**i, K, 4, H]
-        A = A.reshape(bs, -1, 4, topk_prev * 4, self.nhead)
+        A = A.reshape(bs, -1, 4, topk_prev * 4, self.nhead) # [N, L, 4, k*4, H]
         idx = idx.view(bs, -1, 1, topk_prev * 4, self.nhead).repeat(1, 1, 4, 1, 1)  # [N, L,4, K*4, H]
+
+        # full size attention
+        L = A.shape[1]
+        fsa = A.new_zeros([bs, L, 4, L*4, self.nhead]).contiguous() # [N, L, 4, k*4, H] -> [N, L, 4, 4L, H]
+        fsa = fsa.scatter(dim=-2, index=idx, src=A)
+        fsa = fsa.rearrange("b (h w) (t1 t2) l h -> b (h t1) (w t2) l h", h=h//2, w=w//2, t1=2, t2=2) # [N, 4L, 4L, H]
 
         topk_score, topk_idx = torch.topk(A, dim=-2, k=topk, largest=True)
         message = value_aggregation_op(A, value.contiguous(), idx)
@@ -343,7 +349,7 @@ class QTAttB_Attention(nn.Module):
         topk_idx = rearrange(topk_idx, "b (h w) (t1 t2) k nh -> b (h t1 w t2) k nh", h=h // 2, t1=2)  # reshape back
         topk_score = rearrange(topk_score, "b (h w) (t1 t2) k nh -> b (h t1 w t2) k nh", h=h // 2, t1=2)  # reshape back
 
-        return A, message, topk_score, topk_idx
+        return fsa, message, topk_score, topk_idx
 
     def forward(self, queries, keys, values, q_mask=None, kv_mask=None):
         """Multi-head quadtree attention
