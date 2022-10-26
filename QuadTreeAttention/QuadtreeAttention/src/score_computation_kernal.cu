@@ -74,11 +74,11 @@ std::vector<torch::Tensor> ScoreData_ongpu(torch::Tensor query, // B, N1, 4, H, 
     const auto K = index.size(-2);
 
 
-    auto output = torch::zeros({B, N1, 4, K, H},torch::device(torch::kCUDA));
+    auto output = torch::zeros({B, N1, 1, K, H},torch::device(torch::kCUDA));
     
     int shared_memory_per_block = H*D;
     
-    dim3 totalBlocks(B, N1, 4);
+    dim3 totalBlocks(B, N1, 1);
     dim3 threadsPerBlock(THREADS_PER_WARP);
     AT_DISPATCH_FLOATING_TYPES(query.type(), "ScoreData_ongpu", ([&] {
       ScoreData<scalar_t><<<totalBlocks, threadsPerBlock, shared_memory_per_block * sizeof(scalar_t)>>>(
@@ -157,14 +157,14 @@ std::vector<torch::Tensor> ScoreData_backward_ongpu(torch::Tensor grad_output1, 
     const auto D = key.size(3);
 
 
-    auto query_grad = torch::zeros({B, N1, 4, H, D},torch::device(torch::kCUDA));
+    auto query_grad = torch::zeros({B, N1, 1, H, D},torch::device(torch::kCUDA));
     
     auto key_grad = torch::zeros({B, N2, H, D},torch::device(torch::kCUDA));
     
     
     int shared_memory_per_block = H*D+K*H;
    
-    dim3 totalBlocks(B, N1, 4);
+    dim3 totalBlocks(B, N1, 1);
     dim3 threadsPerBlock(THREADS_PER_WARP);
     
     
