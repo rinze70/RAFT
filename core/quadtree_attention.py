@@ -1,73 +1,55 @@
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial
-
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from timm.models.registry import register_model
-from timm.models.vision_transformer import _cfg
-import math
-import sys
 
 sys.path.append("../QuadTreeAttention")
-from QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB
-from einops.einops import rearrange
+from QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB, QTAttB_Attention
 
 
 class QuadtreeAttention(nn.Module):
     def __init__(
         self,
         dim,
-        num_heads=8,
+        num_heads,
+        topks,
+        value_branch=False,
+        act=nn.GELU(),
         qkv_bias=False,
         qk_scale=None,
         attn_drop=0.0,
         proj_drop=0.0,
-        sr_ratio=1,
-        attn_type=None,
-        topks=[32, 32, 32, 32],
+        scale=1,
+        attn_type="B",
     ):
-        self.attn_type = attn_type
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
-        # print('attention layer')
 
         self.dim = dim
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
 
-        # print('dim ' + str(dim) + ', dim each level ' + str(dims_each_level))
-
         self.q_proj = nn.Conv2d(dim, dim, kernel_size=1, stride=1, bias=qkv_bias)
         self.k_proj = nn.Conv2d(dim, dim, kernel_size=1, stride=1, bias=qkv_bias)
         self.v_proj = nn.Conv2d(dim, dim, kernel_size=1, stride=1, bias=qkv_bias)
-
-        if attn_type == "B":
-            self.py_att = QTAttB(num_heads, dim // num_heads, scale=sr_ratio, topks=topks, lepe=True)
-            self.value_branchs = nn.ModuleList(
-                [
-                    nn.Sequential(
-                        nn.GroupNorm(1, dim),
-                        nn.ReLU(),
-                        nn.Conv2d(dim, dim, kernel_size=2, stride=2),
-                        nn.GroupNorm(1, dim),
-                        nn.ReLU(),
-                        nn.Conv2d(dim, dim, kernel_size=1, stride=1),
-                    )
-                    for i in range(sr_ratio - 1)
-                ]
-            )
+        if attn_type == "A":
+            self.py_att = QTAttA(num_heads, dim // num_heads, scale=scale, topks=topks)
+        elif attn_type == "B":
+            self.py_att = QTAttB(num_heads, dim // num_heads, scale=scale, topks=topks)
         else:
-            self.py_att = QTAttA(num_heads, dim // num_heads, topks=topks)
+            self.py_att = QTAttB_Attention(num_heads, dim // num_heads, scale=scale, topks=topks)
 
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-        self.sr_ratio = sr_ratio
+        self.scale = scale
+        self.attn_type = attn_type
 
         self.apply(self._init_weights)
+
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -86,36 +68,49 @@ class QuadtreeAttention(nn.Module):
             if m.bias is not None:
                 m.bias.data.zero_()
 
-    def forward(self, x, H, W):
+    def forward(self, x, target, H, W, msg=None):
 
         B, N, C = x.shape
-        y = x
         x = x.permute(0, 2, 1).reshape(B, C, H, W)
-        target = x
+        target = target.permute(0, 2, 1).reshape(B, C, H, W)
         keys = []
         values = []
         queries = []
 
         q = self.q_proj(x)
         k = self.k_proj(target)
-        v = self.v_proj(target)
+        # v = self.v_proj(target)
+        v = 0
+        for i in range(self.scale):
+            keys.append(k)
+            values.append(v)
+            queries.append(q)
 
-        for i in range(self.sr_ratio):
-            keys.append(k.float())
-            values.append(v.float())
-            queries.append(q.float())
-            if i != self.sr_ratio - 1:
+            if i != self.scale - 1:
                 k = F.avg_pool2d(k, kernel_size=2, stride=2)
+                # q = F.avg_pool2d(q, kernel_size=2, stride=2)
+                # v = F.avg_pool2d(v, kernel_size=2, stride=2)
+                v = 0
 
-                q = F.avg_pool2d(q, kernel_size=2, stride=2)
-                if self.attn_type == "B":
-                    v = self.value_branchs[i](v)
-                else:
-                    v = F.avg_pool2d(v, kernel_size=2, stride=2)
-
-        msg = self.py_att(queries, keys, values).contiguous().view(B, -1, C)
+        if self.attn_type == "B_Attation":
+            msg, att = self.py_att(queries, keys, values)
+            msg = msg.view(B, -1, C)
+        else:
+            msg = self.py_att(queries, keys, values).view(B, -1, C)
 
         x = self.proj(msg)
         x = self.proj_drop(x)
 
-        return x
+        return x, att
+
+if __name__ == "__main__":
+    device = torch.device("cuda")
+    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8],scale=3,attn_type="B_Attation")
+    att.to(device)
+    fmap1 = torch.randn(2, 3600, 256).to(device)
+    fmap2 = torch.randn(2, 3600, 256).to(device)
+    out, att= att(fmap1,fmap2, 60, 60)
+
+    print(out.shape)
+    for l in att:
+        print(l.shape)
