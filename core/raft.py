@@ -60,7 +60,8 @@ class RAFT(nn.Module):
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
 
-    def initialize_flow(self, img):
+    @staticmethod
+    def initialize_flow(img):
         """ Flow is represented as difference between two coordinate grids flow = coords1 - coords0"""
         N, C, H, W = img.shape
         coords0 = coords_grid(N, H//8, W//8, device=img.device)

@@ -43,10 +43,10 @@ class CorrBlock:
             coords_lvl = centroid_lvl + delta_lvl
 
             corr = bilinear_sampler(corr, coords_lvl)
-            corr = corr.view(batch, h1, w1, -1)
+            corr = corr.view(batch, h1, w1, -1) # [b, h1, w1, (2*r+1)*(2*r+1)]
             out_pyramid.append(corr)
 
-        out = torch.cat(out_pyramid, dim=-1)
+        out = torch.cat(out_pyramid, dim=-1) 
         return out.permute(0, 3, 1, 2).contiguous().float()
 
     @staticmethod
