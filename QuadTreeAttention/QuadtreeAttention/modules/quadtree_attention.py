@@ -295,7 +295,7 @@ class QTAttB_Attention(nn.Module):
 
         cur_dim = key.shape[1] // self.nhead
         key = rearrange(key, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
-        value = rearrange(value, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
+        # value = rearrange(value, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
         query = rearrange(query, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)
         QK = torch.einsum("nlhd,nshd->nlsh", query, key)
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
@@ -303,7 +303,8 @@ class QTAttB_Attention(nn.Module):
         A = torch.softmax(softmax_temp * QK, dim=-2)
         topk_score, topk_idx = torch.topk(A, dim=-2, k=topk, largest=True)
 
-        message = torch.einsum("nlsh,nshd->nlhd", A, value)  # .reshape(bs, h, w, self.nhead, cur_dim)
+        # message = torch.einsum("nlsh,nshd->nlhd", A, value)  # .reshape(bs, h, w, self.nhead, cur_dim)
+        message = 0
 
         return A, message, topk_score, topk_idx
 
@@ -312,9 +313,12 @@ class QTAttB_Attention(nn.Module):
 
         cur_dim = key.shape[1] // self.nhead
         key = rearrange(key, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
-        value = rearrange(value, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
+        # value = rearrange(value, "b c h w -> b (h w) c").view(bs, -1, self.nhead, cur_dim)  # [N, S, H, D]
 
-        query = query.view(bs, c, h // 2, 2, w // 2, 2)
+        _, _, qh, qw = query.shape
+        # query = query.view(bs, c, h // 2, 2, w // 2, 2)
+        query = query.unsqueeze_(2).repeat(1, 1, 4, 1, 1)
+        query = query.view(bs, c, qh, 2, qw, 2)
         query = rearrange(query, "b c h t1 w t2-> b (h w) (t1 t2) c ").view(bs, -1, 4, self.nhead, cur_dim)
 
         # convert 2D coordiantes to 1D index
@@ -335,16 +339,17 @@ class QTAttB_Attention(nn.Module):
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
         A = torch.softmax(softmax_temp * QK, dim=-2)  # [N, L//scale**i, K, 4, H]
         A = A.reshape(bs, -1, 4, topk_prev * 4, self.nhead) # [N, L, 4, k*4, H]
-        idx = idx.view(bs, -1, 1, topk_prev * 4, self.nhead).repeat(1, 1, 4, 1, 1)  # [N, L,4, K*4, H]
+        idx = idx.view(bs, -1, 1, topk_prev * 4, self.nhead).repeat(1, 1, 4, 1, 1)  # [N, L,4, K*4, H] L=qh*qw
 
         # full size attention
         L = A.shape[1]
-        fsa = A.new_zeros([bs, L, 4, L*4, self.nhead]).contiguous() # [N, L, 4, k*4, H] -> [N, L, 4, 4L, H]
-        fsa = fsa.scatter(dim=-2, index=idx, src=A)
-        fsa = rearrange(fsa,"b (h w) (t1 t2) l nh -> b (h t1 w t2) l nh", h=h//2, t1=2) # [N, 4L, 4L, H]
+        fsa = A.new_zeros([bs, L, 1, L//4, self.nhead]).contiguous() # [N, L, 4, k*4, H] -> [N, L, 1, L//4, H]
+        fsa[:,:,0,:,:] = fsa[:,:,0,:,:].scatter(dim=-2, index=idx[:,:,0,:,:], src=A[:,:,0,:,:])
+        fsa = rearrange(fsa,"b (h w) s l nh -> b (h w s) l nh", h=qh) # [N, 4L, 4L, H]
 
         topk_score, topk_idx = torch.topk(A, dim=-2, k=topk, largest=True)
-        message = value_aggregation_op(A, value.contiguous(), idx)
+        # message = value_aggregation_op(A, value.contiguous(), idx)
+        message = 0
         topk_idx = torch.gather(idx, index=topk_idx, dim=-2)
         topk_idx = rearrange(topk_idx, "b (h w) (t1 t2) k nh -> b (h t1 w t2) k nh", h=h // 2, t1=2)  # reshape back
         topk_score = rearrange(topk_score, "b (h w) (t1 t2) k nh -> b (h t1 w t2) k nh", h=h // 2, t1=2)  # reshape back
@@ -385,26 +390,26 @@ class QTAttB_Attention(nn.Module):
         # Merge messages of different layers
         final_message = 0
 
-        weight = torch.softmax(self.weight, dim=0)
-        for i, m in enumerate(messages):
-            if self.lepe:
-                H, W = values[-(i + 1)].shape[-2:]
-                lepe = self.get_vs[i](values[-(i + 1)])
+        # weight = torch.softmax(self.weight, dim=0)
+        # for i, m in enumerate(messages):
+        #     if self.lepe:
+        #         H, W = values[-(i + 1)].shape[-2:]
+        #         lepe = self.get_vs[i](values[-(i + 1)])
 
-            if i == 0:
-                if self.lepe:
-                    lepe = rearrange(lepe, "b (hd d) H W -> b (H W) hd d", hd=self.nhead)
-                    final_message = (m + lepe) * weight[i]
-                else:
-                    final_message = m * weight[i]
-            else:
-                if self.lepe:
-                    lepe = rearrange(lepe, "b (hd d) (H t1) (W t2) -> b (H W) (t1 t2) hd d", hd=self.nhead, t1=2, t2=2)
-                    final_message = final_message.unsqueeze(2) + (m + lepe) * weight[i]
-                else:
-                    final_message = final_message.unsqueeze(2) + m * weight[i]
+        #     if i == 0:
+        #         if self.lepe:
+        #             lepe = rearrange(lepe, "b (hd d) H W -> b (H W) hd d", hd=self.nhead)
+        #             final_message = (m + lepe) * weight[i]
+        #         else:
+        #             final_message = m * weight[i]
+        #     else:
+        #         if self.lepe:
+        #             lepe = rearrange(lepe, "b (hd d) (H t1) (W t2) -> b (H W) (t1 t2) hd d", hd=self.nhead, t1=2, t2=2)
+        #             final_message = final_message.unsqueeze(2) + (m + lepe) * weight[i]
+        #         else:
+        #             final_message = final_message.unsqueeze(2) + m * weight[i]
 
-                final_message = rearrange(
-                    final_message, "b (H W) (t1 t2) h d -> b (H t1 W t2) h d", t1=2, t2=2, H=queries[-i].shape[2]
-                )
+        #         final_message = rearrange(
+        #             final_message, "b (H W) (t1 t2) h d -> b (H t1 W t2) h d", t1=2, t2=2, H=queries[-i].shape[2]
+        #         )
         return final_message, attentions

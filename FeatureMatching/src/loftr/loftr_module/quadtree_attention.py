@@ -79,7 +79,8 @@ class QuadtreeAttention(nn.Module):
 
         q = self.q_proj(x)
         k = self.k_proj(target)
-        v = self.v_proj(target)
+        # v = self.v_proj(target)
+        v = 0
         for i in range(self.scale):
             keys.append(k)
             values.append(v)
@@ -87,8 +88,9 @@ class QuadtreeAttention(nn.Module):
 
             if i != self.scale - 1:
                 k = F.avg_pool2d(k, kernel_size=2, stride=2)
-                q = F.avg_pool2d(q, kernel_size=2, stride=2)
-                v = F.avg_pool2d(v, kernel_size=2, stride=2)
+                # q = F.avg_pool2d(q, kernel_size=2, stride=2)
+                # v = F.avg_pool2d(v, kernel_size=2, stride=2)
+                v = 0
 
         if self.attn_type == "B_Attation":
             msg, att = self.py_att(queries, keys, values)
