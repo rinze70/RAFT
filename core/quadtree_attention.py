@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
-sys.path.append("../QuadTreeAttention")
-from QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB, QTAttB_Attention
+# sys.path.append("../QuadTreeAttention")
+from QuadTreeAttention.QuadtreeAttention.modules.quadtree_attention import QTAttA, QTAttB, QTAttB_Attention
 
 
 class QuadtreeAttention(nn.Module):
