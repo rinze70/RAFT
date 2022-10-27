@@ -300,13 +300,14 @@ class QTAttB_Attention(nn.Module):
         QK = torch.einsum("nlhd,nshd->nlsh", query, key)
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
 
-        A = torch.softmax(softmax_temp * QK, dim=-2)
+        attn = QK * softmax_temp
+        A = torch.softmax(attn, dim=-2)
         topk_score, topk_idx = torch.topk(A, dim=-2, k=topk, largest=True)
 
         # message = torch.einsum("nlsh,nshd->nlhd", A, value)  # .reshape(bs, h, w, self.nhead, cur_dim)
         message = 0
 
-        return A, message, topk_score, topk_idx
+        return attn, message, topk_score, topk_idx
 
     def process_fine_level(self, query, key, value, topk_score, topk_pos, topk_prev, topk, final=False):
         bs, c, h, w = key.shape
@@ -336,15 +337,17 @@ class QTAttB_Attention(nn.Module):
         # QK: [b, N, 4, 4K, H]
         QK = score_computation_op(query.contiguous(), key.contiguous(), idx.view(bs, -1, topk_prev * 4, self.nhead))
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
-        A = torch.softmax(softmax_temp * QK, dim=-2)  # [N, L//scale**i, K, 4, H]
+        attn = QK * softmax_temp
+        A = torch.softmax(attn, dim=-2)  # [N, L//scale**i, K, 4, H]
         A = A.reshape(bs, -1, 1, topk_prev * 4, self.nhead) # [N, L, 1, k*4, H]
+        attn = attn.reshape(bs, -1, 1, topk_prev * 4, self.nhead) # [N, L, 1, k*4, H]
         idx = idx.view(bs, -1, 1, topk_prev * 4, self.nhead)  # [N, L,1, K*4, H] L=qh*qw
 
         # full size attention
-        L = A.shape[1]
+        L = attn.shape[1]
         S = key.shape[1]
-        fsa = A.new_zeros([bs, L, 1, S, self.nhead]).contiguous() # [N, L, 1, k*4, H] -> [N, L, 1, S, H]
-        fsa = fsa.scatter(dim=-2, index=idx, src=A)
+        fsa = attn.new_zeros([bs, L, 1, S, self.nhead]).contiguous() # [N, L, 1, k*4, H] -> [N, L, 1, S, H]
+        fsa = fsa.scatter(dim=-2, index=idx, src=attn)
         fsa = fsa.view(bs, -1, S, self.nhead) # [N, L, S, H]
         # fsa = rearrange(fsa,"b (h w) s l nh -> b (h w s) l nh", h=qh) # [N, 4L, 4L, H]
 
