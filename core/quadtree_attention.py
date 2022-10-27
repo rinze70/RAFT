@@ -113,7 +113,7 @@ class QuadtreeAttention(nn.Module):
 if __name__ == "__main__":
     h, w = 384//8, 512//8
     device = torch.device("cuda")
-    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8], scale=4, attn_type="B_Attation")
+    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8], scale=3, attn_type="B_Attation")
     att.to(device)
     fmap1 = torch.randn(2, h*w, 256).to(device)
     fmap2 = torch.randn(2, h*w, 256).to(device)

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from einops.einops import rearrange
 
 from utils.utils import bilinear_sampler, coords_grid
-from quadtree_attention import QuadTreeAttention
+from quadtree_attention import QuadtreeAttention
 
 try:
     import alt_cuda_corr
@@ -95,31 +95,32 @@ class AlternateCorrBlock:
         return corr / torch.sqrt(torch.tensor(dim).float())
 
 class QuadTreeCorrBlock:
-    def __init__(self, fmap1, fmap2, num_levels=4, radius=4):
-        self.num_levels = num_levels
+    def __init__(self, fmap1, fmap2, topks=[16, 8, 8], radius=4):
+        self.num_levels = len(topks)
         self.radius = radius
         self.corr_pyramid = []
 
         # all pairs correlation
         # corr = CorrBlock.corr(fmap1, fmap2)
         _, c, h, w = fmap1.shape
-        att = QuadtreeAttention(dim=c, num_heads=8, topks=[16, 8, 8], scale=num_levels, attn_type="B_Attation")
+        att = QuadtreeAttention(dim=c, num_heads=8, topks=topks, scale=self.num_levels, attn_type="B_Attation")
+        att.to(torch.device("cuda"))
         fmap1 = rearrange(fmap1, 'b c h w -> b (h w) c')
         fmap2 = rearrange(fmap2, 'b c h w -> b (h w) c')
-        atts = att(fmap1,fmap2, h, w)
+        atts = att(fmap1.contiguous(),fmap2, h, w)
 
         for i, att in enumerate(reversed(atts)):
             # [b, h1*w1*h2*w2, dim]
             corr = rearrange(att, 'b (l h w) c -> (b l) c h w', h=h//(2**i), w=w//(2**i)) # [b, h1*w1, dim, h2, w2]->[batch*h1*w1, dim, h2, w2]
             self.corr_pyramid.append(corr)
 
-        batch, h1, w1, dim, h2, w2 = corr.shape
-        corr = corr.reshape(batch*h1*w1, dim, h2, w2)
+        # batch, h1, w1, dim, h2, w2 = corr.shape
+        # corr = corr.reshape(batch*h1*w1, dim, h2, w2)
         
-        self.corr_pyramid.append(corr)
-        for i in range(self.num_levels-1):
-            corr = F.avg_pool2d(corr, 2, stride=2)
-            self.corr_pyramid.append(corr)
+        # self.corr_pyramid.append(corr)
+        # for i in range(self.num_levels-1):
+        #     corr = F.avg_pool2d(corr, 2, stride=2)
+        #     self.corr_pyramid.append(corr)
 
     def __call__(self, coords):
         r = self.radius
@@ -143,13 +144,3 @@ class QuadTreeCorrBlock:
 
         out = torch.cat(out_pyramid, dim=-1) 
         return out.permute(0, 3, 1, 2).contiguous().float()
-
-    @staticmethod
-    def corr(fmap1, fmap2):
-        batch, dim, ht, wd = fmap1.shape
-        fmap1 = fmap1.view(batch, dim, ht*wd)
-        fmap2 = fmap2.view(batch, dim, ht*wd) 
-        
-        corr = torch.matmul(fmap1.transpose(1,2), fmap2)
-        corr = corr.view(batch, ht, wd, 1, ht, wd)
-        return corr  / torch.sqrt(torch.tensor(dim).float())
