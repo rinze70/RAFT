@@ -104,7 +104,7 @@ class QuadTreeCorrBlock:
         # corr = CorrBlock.corr(fmap1, fmap2)
         _, c, h, w = fmap1.shape
         att = QuadtreeAttention(dim=c, num_heads=8, topks=topks, scale=self.num_levels, attn_type="B_Attation")
-        att.to(torch.device("cuda"))
+        att.to(fmap1.device)
         fmap1 = rearrange(fmap1, 'b c h w -> b (h w) c')
         fmap2 = rearrange(fmap2, 'b c h w -> b (h w) c')
         atts = att(fmap1.contiguous(),fmap2, h, w)
