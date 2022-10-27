@@ -63,7 +63,7 @@ class RAFT(nn.Module):
             self.cnet = BasicEncoder(output_dim=hdim+cdim, norm_fn='batch', dropout=args.dropout)
             self.update_block = BasicUpdateBlock(self.args, hidden_dim=hdim)
 
-        self.feat_encoder = twins_svt_large(pretrained=self.cfg.pretrain)
+        self.feat_encoder = twins_svt_large(pretrained=True)
         self.channel_convertor = nn.Conv2d(256, 256, 1, padding=0, bias=False)
 
     def freeze_bn(self):
