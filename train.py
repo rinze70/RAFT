@@ -236,6 +236,7 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.0)
     parser.add_argument('--gamma', type=float, default=0.8, help='exponential weighting')
     parser.add_argument('--add_noise', action='store_true')
+    parser.add_argument('--quad_tree', action='store_true', help="enable QuadTree")
     args = parser.parse_args()
 
     torch.manual_seed(1234)

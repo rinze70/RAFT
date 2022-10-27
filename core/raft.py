@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 from update import BasicUpdateBlock, SmallUpdateBlock
 from extractor import BasicEncoder, SmallEncoder
-from corr import CorrBlock, AlternateCorrBlock
+from corr import CorrBlock, AlternateCorrBlock, QuadTreeCorrBlock
 from utils.utils import bilinear_sampler, coords_grid, upflow8
 
 try:
@@ -104,6 +104,8 @@ class RAFT(nn.Module):
         fmap2 = fmap2.float()
         if self.args.alternate_corr:
             corr_fn = AlternateCorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
+        elif self.args.quad_tree:
+            corr_fn = QuadTreeCorrBlock(fmap1, fmap2, topks=[16, 8, 8, 8], radius=self.args.corr_radius)
         else:
             corr_fn = CorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
 
