@@ -14,3 +14,6 @@ if __name__ == '__main__':
     coords0, coords1 = RAFT.initialize_flow(image1)
 
     corr = corr_fn(coords1)
+
+    for l in corr:
+        print(l.shape)

@@ -44,6 +44,7 @@ class QuadtreeAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+        self.head_proj = nn.Linear(num_heads, 1)
 
         self.scale = scale
         self.attn_type = attn_type
@@ -93,24 +94,30 @@ class QuadtreeAttention(nn.Module):
                 v = 0
 
         if self.attn_type == "B_Attation":
-            msg, att = self.py_att(queries, keys, values)
-            msg = msg.view(B, -1, C)
+            atts = self.py_att(queries, keys, values)
+            # msg = msg.view(B, -1, C)
         else:
             msg = self.py_att(queries, keys, values).view(B, -1, C)
 
-        x = self.proj(msg)
-        x = self.proj_drop(x)
 
-        return x, att
+        # x = self.proj(msg)
+        # x = self.proj_drop(x)
+
+        attention_pyramid = []
+        for a in atts:
+            a = self.head_proj(a.view(B, -1, self.num_heads))
+            attention_pyramid.append(a) # TODO: VMemory
+
+        return attention_pyramid
 
 if __name__ == "__main__":
+    h, w = 384//8, 512//8
     device = torch.device("cuda")
-    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8],scale=3,attn_type="B_Attation")
+    att = QuadtreeAttention(dim=256, num_heads=8, topks=[16, 8, 8], scale=4, attn_type="B_Attation")
     att.to(device)
-    fmap1 = torch.randn(2, 3600, 256).to(device)
-    fmap2 = torch.randn(2, 3600, 256).to(device)
-    out, att= att(fmap1,fmap2, 60, 60)
+    fmap1 = torch.randn(2, h*w, 256).to(device)
+    fmap2 = torch.randn(2, h*w, 256).to(device)
+    att= att(fmap1,fmap2, h, w)
 
-    print(out.shape)
     for l in att:
         print(l.shape)
