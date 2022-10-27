@@ -8,6 +8,8 @@ from extractor import BasicEncoder, SmallEncoder
 from corr import CorrBlock, AlternateCorrBlock, QuadTreeCorrBlock
 from utils.utils import bilinear_sampler, coords_grid, upflow8
 
+from encoders import twins_svt_large
+
 try:
     autocast = torch.cuda.amp.autocast
 except:
@@ -61,6 +63,9 @@ class RAFT(nn.Module):
             self.cnet = BasicEncoder(output_dim=hdim+cdim, norm_fn='batch', dropout=args.dropout)
             self.update_block = BasicUpdateBlock(self.args, hidden_dim=hdim)
 
+        self.feat_encoder = twins_svt_large(pretrained=self.cfg.pretrain)
+        self.channel_convertor = nn.Conv2d(256, 256, 1, padding=0, bias=False)
+
     def freeze_bn(self):
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d):
@@ -104,10 +109,20 @@ class RAFT(nn.Module):
 
         # run the feature network
         with autocast(enabled=self.args.mixed_precision):
-            fmap1, fmap2 = self.fnet([image1, image2])        
+            # fmap1, fmap2 = self.fnet([image1, image2])   
+            imgs = torch.cat([image1, image2], dim=0)
+            feats = self.feat_encoder(imgs)
+            feats = self.channel_convertor(feats)
+            B = feats.shape[0] // 2
+
+            fmap1 = feats[:B]
+            fmap2 = feats[B:]
+
+            # B, C, H, W = feat_s.shape
+            # size = (H, W)     
         
-        fmap1 = fmap1.float()
-        fmap2 = fmap2.float()
+        # fmap1 = fmap1.float()
+        # fmap2 = fmap2.float()
         if self.args.alternate_corr:
             corr_fn = AlternateCorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
         elif self.args.quad_tree:
