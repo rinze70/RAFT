@@ -105,7 +105,7 @@ class RAFT(nn.Module):
         if self.args.alternate_corr:
             corr_fn = AlternateCorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
         elif self.args.quad_tree:
-            corr_fn = QuadTreeCorrBlock(fmap1, fmap2, topks=[16, 8, 8, 8], radius=self.args.corr_radius)
+            corr_fn = QuadTreeCorrBlock(fmap1, fmap2, topks=[16, 8, 8], radius=self.args.corr_radius)
         else:
             corr_fn = CorrBlock(fmap1, fmap2, radius=self.args.corr_radius)
 
