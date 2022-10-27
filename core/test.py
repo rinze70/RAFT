@@ -5,7 +5,7 @@ from corr import CorrBlock, QuadTreeCorrBlock
 
 if __name__ == '__main__':
     device = torch.device('cuda')
-    image1 = torch.rand(2, 3, 384, 512)
+    image1 = torch.rand(2, 3, 384, 512).to(device)
 
     fmap1 = torch.rand(2, 128, 384//8, 512//8).to(device)
     fmap2 = torch.rand(2, 128, 384//8, 512//8).to(device)

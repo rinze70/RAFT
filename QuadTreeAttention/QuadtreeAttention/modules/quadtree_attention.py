@@ -334,7 +334,7 @@ class QTAttB_Attention(nn.Module):
         # key: [b, 4N, H, D] -> [b, 4k, H, D]
         # idx: [b, N, K, 4, H]
         # QK: [b, N, 4, 4K, H]
-        QK = score_computation_op(query, key.contiguous(), idx.view(bs, -1, topk_prev * 4, self.nhead))
+        QK = score_computation_op(query.contiguous().contiguous(), idx.view(bs, -1, topk_prev * 4, self.nhead))
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
         A = torch.softmax(softmax_temp * QK, dim=-2)  # [N, L//scale**i, K, 4, H]
         A = A.reshape(bs, -1, 1, topk_prev * 4, self.nhead) # [N, L, 1, k*4, H]
