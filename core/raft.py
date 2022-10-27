@@ -29,13 +29,13 @@ class RAFT(nn.Module):
         if args.small:
             self.hidden_dim = hdim = 96
             self.context_dim = cdim = 64
-            args.corr_levels = 4
+            args.corr_levels = 3
             args.corr_radius = 3
         
         else:
             self.hidden_dim = hdim = 128
             self.context_dim = cdim = 128
-            args.corr_levels = 4
+            args.corr_levels = 3
             args.corr_radius = 4
 
         if 'dropout' not in self.args:
