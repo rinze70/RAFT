@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from einops.einops import rearrange
 
 from utils.utils import bilinear_sampler, coords_grid
-from quadtree_attention import QuadtreeAttention
+# from quadtree_attention import QuadtreeAttention
 
 try:
     import alt_cuda_corr
@@ -94,53 +94,53 @@ class AlternateCorrBlock:
         corr = corr.reshape(B, -1, H, W)
         return corr / torch.sqrt(torch.tensor(dim).float())
 
-class QuadTreeCorrBlock:
-    def __init__(self, fmap1, fmap2, topks=[16, 8, 8], radius=4):
-        self.num_levels = len(topks)
-        self.radius = radius
-        self.corr_pyramid = []
+# class QuadTreeCorrBlock:
+#     def __init__(self, fmap1, fmap2, topks=[16, 8, 8], radius=4):
+#         self.num_levels = len(topks)
+#         self.radius = radius
+#         self.corr_pyramid = []
 
-        # all pairs correlation
-        # corr = CorrBlock.corr(fmap1, fmap2)
-        _, c, h, w = fmap1.shape
-        att = QuadtreeAttention(dim=c, num_heads=8, topks=topks, scale=self.num_levels, attn_type="B_Attation")
-        att.to(fmap1.device)
-        fmap1 = rearrange(fmap1, 'b c h w -> b (h w) c')
-        fmap2 = rearrange(fmap2, 'b c h w -> b (h w) c')
-        atts = att(fmap1.contiguous(),fmap2, h, w)
+#         # all pairs correlation
+#         # corr = CorrBlock.corr(fmap1, fmap2)
+#         _, c, h, w = fmap1.shape
+#         att = QuadtreeAttention(dim=c, num_heads=8, topks=topks, scale=self.num_levels, attn_type="B_Attation")
+#         att.to(fmap1.device)
+#         fmap1 = rearrange(fmap1, 'b c h w -> b (h w) c')
+#         fmap2 = rearrange(fmap2, 'b c h w -> b (h w) c')
+#         atts = att(fmap1.contiguous(),fmap2, h, w)
 
-        for i, att in enumerate(reversed(atts)):
-            # [b, h1*w1*h2*w2, dim]
-            corr = rearrange(att, 'b (l h w) c -> (b l) c h w', h=h//(2**i), w=w//(2**i)) # [b, h1*w1, dim, h2, w2]->[batch*h1*w1, dim, h2, w2]
-            self.corr_pyramid.append(corr)
+#         for i, att in enumerate(reversed(atts)):
+#             # [b, h1*w1*h2*w2, dim]
+#             corr = rearrange(att, 'b (l h w) c -> (b l) c h w', h=h//(2**i), w=w//(2**i)) # [b, h1*w1, dim, h2, w2]->[batch*h1*w1, dim, h2, w2]
+#             self.corr_pyramid.append(corr)
 
-        # batch, h1, w1, dim, h2, w2 = corr.shape
-        # corr = corr.reshape(batch*h1*w1, dim, h2, w2)
+#         # batch, h1, w1, dim, h2, w2 = corr.shape
+#         # corr = corr.reshape(batch*h1*w1, dim, h2, w2)
         
-        # self.corr_pyramid.append(corr)
-        # for i in range(self.num_levels-1):
-        #     corr = F.avg_pool2d(corr, 2, stride=2)
-        #     self.corr_pyramid.append(corr)
+#         # self.corr_pyramid.append(corr)
+#         # for i in range(self.num_levels-1):
+#         #     corr = F.avg_pool2d(corr, 2, stride=2)
+#         #     self.corr_pyramid.append(corr)
 
-    def __call__(self, coords):
-        r = self.radius
-        coords = coords.permute(0, 2, 3, 1)
-        batch, h1, w1, _ = coords.shape
+#     def __call__(self, coords):
+#         r = self.radius
+#         coords = coords.permute(0, 2, 3, 1)
+#         batch, h1, w1, _ = coords.shape
 
-        out_pyramid = []
-        for i in range(self.num_levels):
-            corr = self.corr_pyramid[i]
-            dx = torch.linspace(-r, r, 2*r+1, device=coords.device)
-            dy = torch.linspace(-r, r, 2*r+1, device=coords.device)
-            delta = torch.stack(torch.meshgrid(dy, dx), axis=-1)
+#         out_pyramid = []
+#         for i in range(self.num_levels):
+#             corr = self.corr_pyramid[i]
+#             dx = torch.linspace(-r, r, 2*r+1, device=coords.device)
+#             dy = torch.linspace(-r, r, 2*r+1, device=coords.device)
+#             delta = torch.stack(torch.meshgrid(dy, dx), axis=-1)
 
-            centroid_lvl = coords.reshape(batch*h1*w1, 1, 1, 2) / 2**i
-            delta_lvl = delta.view(1, 2*r+1, 2*r+1, 2)
-            coords_lvl = centroid_lvl + delta_lvl
+#             centroid_lvl = coords.reshape(batch*h1*w1, 1, 1, 2) / 2**i
+#             delta_lvl = delta.view(1, 2*r+1, 2*r+1, 2)
+#             coords_lvl = centroid_lvl + delta_lvl
 
-            corr = bilinear_sampler(corr, coords_lvl)
-            corr = corr.view(batch, h1, w1, -1) # [b, h1, w1, (2*r+1)*(2*r+1)]
-            out_pyramid.append(corr)
+#             corr = bilinear_sampler(corr, coords_lvl)
+#             corr = corr.view(batch, h1, w1, -1) # [b, h1, w1, (2*r+1)*(2*r+1)]
+#             out_pyramid.append(corr)
 
-        out = torch.cat(out_pyramid, dim=-1) 
-        return out.permute(0, 3, 1, 2).contiguous().float()
+#         out = torch.cat(out_pyramid, dim=-1) 
+#         return out.permute(0, 3, 1, 2).contiguous().float()
