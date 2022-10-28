@@ -7,7 +7,7 @@ import numpy as np
 class pvt_v2(nn.Module):
     def __init__(self, pretrained=True):
         super().__init__()
-        self.pvt = timm.create_model('pvt_v2_b1', pretrained=pretrained)
+        self.pvt = timm.create_model('pvt_v2_b5', pretrained=pretrained)
 
         del self.pvt.head
         del self.pvt.stages[2]
