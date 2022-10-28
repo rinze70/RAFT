@@ -4,10 +4,10 @@ import torch.nn as nn
 import timm
 import numpy as np
 
-class pvt_v2_b0(nn.Module):
+class pvt_v2(nn.Module):
     def __init__(self, pretrained=True):
         super().__init__()
-        self.pvt = timm.create_model('pvt_v2_b0', pretrained=pretrained)
+        self.pvt = timm.create_model('pvt_v2_b1', pretrained=pretrained)
 
         del self.pvt.head
         del self.pvt.stages[2]
@@ -29,7 +29,7 @@ class pvt_v2_b0(nn.Module):
         return num
 
 if __name__ == '__main__':
-    m = pvt_v2_b0()
+    m = pvt_v2()
     print(m.compute_params())
     # m = timm.create_model('pvt_v2_b0', pretrained=True)
     input = torch.randn(2, 3, 400, 800)

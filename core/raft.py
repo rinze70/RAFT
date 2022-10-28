@@ -9,7 +9,7 @@ from corr import CorrBlock, AlternateCorrBlock
 from utils.utils import bilinear_sampler, coords_grid, upflow8
 
 from encoders import twins_svt_large
-from pvtv2 import pvt_v2_b0
+from pvtv2 import pvt_v2
 
 try:
     autocast = torch.cuda.amp.autocast
@@ -65,7 +65,7 @@ class RAFT(nn.Module):
             self.update_block = BasicUpdateBlock(self.args, hidden_dim=hdim)
 
         # self.feat_encoder = twins_svt_large(pretrained=True) # out_dim = 256
-        self.feat_encoder = pvt_v2_b0(pretrained=True) # out_dim = 128
+        self.feat_encoder = pvt_v2(pretrained=True) # out_dim = 128
         self.channel_convertor = nn.Conv2d(128, 256, 1, padding=0, bias=False)
 
     def freeze_bn(self):
