@@ -88,5 +88,5 @@ class twins_svt_large_context(nn.Module):
 if __name__ == "__main__":
     m = twins_svt_large()
     input = torch.randn(2, 3, 400, 800)
-    out = m.extract_feature(input)
+    out = m(input)
     print(out.shape)
