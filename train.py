@@ -69,6 +69,15 @@ def sequence_loss(flow_preds, flow_gt, valid, gamma=0.8, max_flow=MAX_FLOW):
         '5px': (epe < 5).float().mean().item(),
     }
 
+    # flow_gt_thresholds
+    flow_gt_thresholds = [1, 5, 10, 20]
+    flow_gt_length = mag.view(-1)[valid.view(-1)]
+    for t in flow_gt_thresholds:
+        e = epe[flow_gt_length < t]
+        metrics.update({
+                f"{t}-th-5px": e.float().mean().item()
+        })
+
     return flow_loss, metrics
 
 
