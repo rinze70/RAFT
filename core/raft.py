@@ -10,7 +10,7 @@ from utils.utils import bilinear_sampler, coords_grid, upflow8
 
 # from encoders import twins_svt_large
 # from pvtv2 import pvt_v2
-from hrnetv2 import hrnet18
+from hrnetv2 import hrnet18_small
 
 try:
     autocast = torch.cuda.amp.autocast
@@ -67,8 +67,8 @@ class RAFT(nn.Module):
 
         # self.feat_encoder = twins_svt_large(pretrained=True) # out_dim = 256
         # self.feat_encoder = pvt_v2(pretrained=True) # out_dim = 128
-        self.feat_encoder = hrnet18() # out_dim = 270
-        self.channel_convertor = nn.Conv2d(270, 256, 1, padding=0, bias=False)
+        self.feat_encoder = hrnet18_small() # out_dim = 270/240
+        self.channel_convertor = nn.Conv2d(240, 256, 1, padding=0, bias=False)
 
     def freeze_bn(self):
         for m in self.modules():

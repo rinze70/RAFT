@@ -508,6 +508,7 @@ def _hrnet(arch, pretrained, progress, **kwargs):
     try:
         from core.hrnet_config import MODEL_CONFIGS
     except ImportError:
+        from hrnet_config import MODEL_CONFIGS
         # from segmentation.config.hrnet_config import MODEL_CONFIGS
         print('ImportError: cannot import name MODEL_CONFIGS')
     model = HighResolutionNet(MODEL_CONFIGS[arch], **kwargs)
@@ -518,6 +519,17 @@ def _hrnet(arch, pretrained, progress, **kwargs):
     #     model.load_state_dict(state_dict, strict=False)
     return model
 
+def hrnet18_small(pretrained=True, progress=True, **kwargs):
+    r"""HRNet-18-small model
+    """
+    return _hrnet('hrnet18_small', pretrained, progress,
+                   **kwargs)
+
+def hrnet18_small_v2(pretrained=True, progress=True, **kwargs):
+    r"""HRNet-18-small-v2 model
+    """
+    return _hrnet('hrnet18_small_v2', pretrained, progress,
+                   **kwargs)
 
 def hrnet18(pretrained=True, progress=True, **kwargs):
     r"""HRNet-18 model
@@ -542,7 +554,7 @@ def hrnet48(pretrained=True, progress=True, **kwargs):
 if __name__ == '__main__':
     import torch
 
-    model = hrnet18()
+    model = hrnet18_small(pretrained=False)
     input = torch.randn(2, 3, 368, 496) # 384 512; 368 496; 256 192
     out = model(input)
     print(out.shape)
