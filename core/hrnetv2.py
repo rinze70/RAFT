@@ -6,6 +6,7 @@
 
 import os
 import logging
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 # from torchvision.models.utils import load_state_dict_from_url
@@ -505,7 +506,7 @@ class HighResolutionNet(nn.Module):
 
 def _hrnet(arch, pretrained, progress, **kwargs):
     try:
-        from hrnet_config import MODEL_CONFIGS
+        from core.hrnet_config import MODEL_CONFIGS
     except ImportError:
         # from segmentation.config.hrnet_config import MODEL_CONFIGS
         print('ImportError: cannot import name MODEL_CONFIGS')

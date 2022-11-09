@@ -8,7 +8,7 @@ from extractor import BasicEncoder, SmallEncoder
 from corr import CorrBlock, AlternateCorrBlock
 from utils.utils import bilinear_sampler, coords_grid, upflow8
 
-from encoders import twins_svt_large
+# from encoders import twins_svt_large
 # from pvtv2 import pvt_v2
 from hrnetv2 import hrnet18
 
