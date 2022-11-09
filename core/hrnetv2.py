@@ -298,7 +298,7 @@ class HighResolutionNet(nn.Module):
         self.norm_layer = norm_layer
         # stem network
         # stem net
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=1,
                                bias=False)
         self.bn1 = self.norm_layer(64)
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
@@ -311,7 +311,7 @@ class HighResolutionNet(nn.Module):
         num_channels = self.stage1_cfg['NUM_CHANNELS'][0]
         block = blocks_dict[self.stage1_cfg['BLOCK']]
         num_blocks = self.stage1_cfg['NUM_BLOCKS'][0]
-        self.layer1 = self._make_layer(block, 64, num_channels, num_blocks)
+        self.layer1 = self._make_layer(block, 64, num_channels, num_blocks, stride=2)
         stage1_out_channel = block.expansion*num_channels
 
         # stage 2
@@ -498,7 +498,7 @@ class HighResolutionNet(nn.Module):
 
         x = torch.cat([x[0], x1, x2, x3], 1)
 
-        x = self.last_layer(x)
+        # x = self.last_layer(x)
 
         return x
 
