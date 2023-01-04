@@ -328,13 +328,13 @@ class QTAttB_Attention(nn.Module):
             for y in [0, 1]:
                 idx = (topk_pos[0] + x) * w + topk_pos[1] + y  # convert to index
                 idx_gather.append(idx)
-        idx = torch.stack(idx_gather, dim=3)  # [N, L, K, 4, H, D]
+        idx = torch.stack(idx_gather, dim=3)  # [b, L, K, 4, H, D]
 
         # score computation
-        # query: [b, N, 4, H, D]
-        # key: [b, 4N, H, D] -> [b, 4k, H, D]
-        # idx: [b, N, K, 4, H]
-        # QK: [b, N, 4, 4K, H]
+        # query: [b, 4N, 1, H, D]
+        # key: [b, N, H, D] -> [b, 4k, H, D]
+        # idx: [b, 4N, K, 4, H]
+        # QK: [b, 4N, 1, 4K, H]
         QK = score_computation_op(query.contiguous(), key.contiguous(), idx.view(bs, -1, topk_prev * 4, self.nhead))
         softmax_temp = 1.0 / cur_dim ** 0.5  # sqrt(D)
         attn = QK * softmax_temp
@@ -393,27 +393,29 @@ class QTAttB_Attention(nn.Module):
 
         # Merge messages of different layers
         final_message = 0
+        final_attention = 0
 
-        # weight = torch.softmax(self.weight, dim=0)
-        # for i, m in enumerate(messages):
-        #     if self.lepe:
-        #         H, W = values[-(i + 1)].shape[-2:]
-        #         lepe = self.get_vs[i](values[-(i + 1)])
+        weight = torch.softmax(self.weight, dim=0)
+        for i, a in enumerate(attentions):
+            if self.lepe:
+                H, W = values[-(i + 1)].shape[-2:]
+                lepe = self.get_vs[i](values[-(i + 1)])
 
-        #     if i == 0:
-        #         if self.lepe:
-        #             lepe = rearrange(lepe, "b (hd d) H W -> b (H W) hd d", hd=self.nhead)
-        #             final_message = (m + lepe) * weight[i]
-        #         else:
-        #             final_message = m * weight[i]
-        #     else:
-        #         if self.lepe:
-        #             lepe = rearrange(lepe, "b (hd d) (H t1) (W t2) -> b (H W) (t1 t2) hd d", hd=self.nhead, t1=2, t2=2)
-        #             final_message = final_message.unsqueeze(2) + (m + lepe) * weight[i]
-        #         else:
-        #             final_message = final_message.unsqueeze(2) + m * weight[i]
+            if i == 0:
+                if self.lepe: # TODO: need to test position encoding
+                    lepe = rearrange(lepe, "b (hd d) H W -> b (H W) hd d", hd=self.nhead)
+                    final_attention = (a + lepe) * weight[i]
+                else:
+                    final_attention = a * weight[i]
+            else:
+                a = rearrange(a, "b l (f s) nh -> b l f s nh", f=4)
+                if self.lepe:
+                    lepe = rearrange(lepe, "b (hd d) (H t1) (W t2) -> b (H W) (t1 t2) hd d", hd=self.nhead, t1=2, t2=2)
+                    final_attention = final_attention.unsqueeze(2) + (a + lepe) * weight[i]
+                else:
+                    final_attention = final_attention.unsqueeze(2) + a * weight[i]
 
-        #         final_message = rearrange(
-        #             final_message, "b (H W) (t1 t2) h d -> b (H t1 W t2) h d", t1=2, t2=2, H=queries[-i].shape[2]
-        #         )
-        return attentions
+                final_attention = rearrange(
+                    final_attention, "b l (t1 t2) (H W) hd -> b l (H t1 W t2) hd", t1=2, t2=2, H=queries[-i].shape[2]
+                )
+        return final_attention
